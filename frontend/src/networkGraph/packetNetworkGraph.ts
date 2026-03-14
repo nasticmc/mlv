@@ -1,4 +1,4 @@
-import { PayloadType } from '@michaelhart/meshcore-decoder';
+import { DeviceRole, PayloadType } from '@michaelhart/meshcore-decoder';
 
 import {
   CONTACT_TYPE_REPEATER,
@@ -248,6 +248,7 @@ function addOrUpdateNode(
   const existing = state.nodes.get(id);
   if (existing) {
     existing.lastActivity = Math.max(existing.lastActivity, activityAtMs);
+    if (existing.id !== 'self') existing.type = type;
     if (name) existing.name = name;
     if (probableIdentity !== undefined) existing.probableIdentity = probableIdentity;
     if (probableIdentityNodeId !== undefined) existing.probableIdentityNodeId = probableIdentityNodeId;
@@ -267,6 +268,11 @@ function addOrUpdateNode(
     ambiguousNames,
     lastSeen,
   });
+}
+
+function getNodeTypeFromAdvertRole(deviceRole: DeviceRole | null | undefined): NodeType | null {
+  if (deviceRole === DeviceRole.Repeater) return 'repeater';
+  return null;
 }
 
 function addCanonicalLink(
@@ -528,13 +534,25 @@ export function buildCanonicalPathForPacket(
     );
     if (nodeId) {
       if (nodeId !== 'self' && parsed.advertName) {
+        const advertNodeType = getNodeTypeFromAdvertRole(parsed.advertDeviceRole);
         addOrUpdateNode(state, {
           id: nodeId,
           name: parsed.advertName,
-          type: state.nodes.get(nodeId)?.type ?? 'client',
+          type: advertNodeType ?? state.nodes.get(nodeId)?.type ?? 'client',
           isAmbiguous: false,
           activityAtMs,
         });
+      } else if (nodeId !== 'self') {
+        const advertNodeType = getNodeTypeFromAdvertRole(parsed.advertDeviceRole);
+        if (advertNodeType) {
+          addOrUpdateNode(state, {
+            id: nodeId,
+            name: state.nodes.get(nodeId)?.name ?? null,
+            type: advertNodeType,
+            isAmbiguous: false,
+            activityAtMs,
+          });
+        }
       }
       path.push(nodeId);
       packetSource = nodeId;
