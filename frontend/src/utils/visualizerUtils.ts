@@ -1,4 +1,4 @@
-import { MeshCoreDecoder, PayloadType } from '@michaelhart/meshcore-decoder';
+import { DeviceRole, MeshCoreDecoder, PayloadType } from '@michaelhart/meshcore-decoder';
 import {
   CONTACT_TYPE_COMPANION,
   CONTACT_TYPE_REPEATER,
@@ -45,6 +45,7 @@ export interface ParsedPacket {
   dstHash: string | null;
   advertPubkey: string | null;
   advertName: string | null;
+  advertDeviceRole: DeviceRole | null;
   groupTextSender: string | null;
   anonRequestPubkey: string | null;
 }
@@ -157,6 +158,7 @@ export function parsePacket(hexData: string): ParsedPacket | null {
       dstHash: null,
       advertPubkey: null,
       advertName: null,
+      advertDeviceRole: null,
       groupTextSender: null,
       anonRequestPubkey: null,
     };
@@ -166,9 +168,13 @@ export function parsePacket(hexData: string): ParsedPacket | null {
       result.srcHash = payload.sourceHash || null;
       result.dstHash = payload.destinationHash || null;
     } else if (decoded.payloadType === PayloadType.Advert && decoded.payload.decoded) {
-      const payload = decoded.payload.decoded as { publicKey?: string; appData?: { name?: string } };
+      const payload = decoded.payload.decoded as {
+        publicKey?: string;
+        appData?: { name?: string; deviceRole?: DeviceRole };
+      };
       result.advertPubkey = payload.publicKey || null;
       result.advertName = payload.appData?.name?.trim() || null;
+      result.advertDeviceRole = payload.appData?.deviceRole ?? null;
     } else if (decoded.payloadType === PayloadType.GroupText && decoded.payload.decoded) {
       const payload = decoded.payload.decoded as { decrypted?: { sender?: string } };
       result.groupTextSender = payload.decrypted?.sender || null;
