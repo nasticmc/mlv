@@ -32,14 +32,14 @@ export interface NodeMeshData {
 export const NODE_COLORS = {
   self: 0x22c55e,
   repeater: 0x3b82f6,
-  client: 0xffffff,
+  client: 0xa855f7,
   ambiguous: 0x9ca3af,
 } as const;
 
 export const NODE_LEGEND_ITEMS = [
   { label: 'Self (you)', color: '#22c55e', size: 16 },
   { label: 'Repeater', color: '#3b82f6', size: 10 },
-  { label: 'Companion / Client', color: '#ffffff', size: 10 },
+  { label: 'Companion / Client', color: '#a855f7', size: 10 },
   { label: 'Ambiguous', color: '#9ca3af', size: 10 },
 ] as const;
 
