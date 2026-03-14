@@ -41,23 +41,19 @@ export function VisualizerTooltip({
   const mutedStyle: React.CSSProperties = { color: 'var(--muted-foreground)' };
   const sectionStyle: React.CSSProperties = { marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' };
 
-  const displayName = node.name || node.id.slice(0, 8);
+  const displayName = node.name || 'Unknown node';
   const typeLabel =
     node.type === 'self'
       ? 'Self'
       : node.type === 'repeater'
         ? 'Repeater'
-        : node.type === 'companion'
-          ? 'Companion'
-          : 'Client';
+        : 'Companion / Client';
   const typeColor =
     node.type === 'self'
       ? '#22c55e'
       : node.type === 'repeater'
         ? '#3b82f6'
-        : node.type === 'companion'
-          ? '#a855f7'
-          : '#ffffff';
+        : '#ffffff';
 
   return (
     <div style={tooltipStyle}>
@@ -108,7 +104,7 @@ export function VisualizerTooltip({
           {neighborIds.map((neighborId) => {
             const neighbor = canonicalNodes.get(neighborId);
             const isHidden = !renderedNodeIds.has(neighborId);
-            const neighborName = neighbor?.name || neighborId.slice(0, 8);
+            const neighborName = neighbor?.name || 'Unknown node';
             return (
               <div key={neighborId} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                 {isHidden && <span style={{ ...mutedStyle, fontSize: '10px' }}>[hidden]</span>}
