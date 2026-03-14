@@ -42,8 +42,22 @@ export function VisualizerTooltip({
   const sectionStyle: React.CSSProperties = { marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' };
 
   const displayName = node.name || node.id.slice(0, 8);
-  const typeLabel = node.type === 'self' ? 'Self' : node.type === 'repeater' ? 'Repeater' : 'Client';
-  const typeColor = node.type === 'self' ? '#22c55e' : node.type === 'repeater' ? '#3b82f6' : '#ffffff';
+  const typeLabel =
+    node.type === 'self'
+      ? 'Self'
+      : node.type === 'repeater'
+        ? 'Repeater'
+        : node.type === 'companion'
+          ? 'Companion'
+          : 'Client';
+  const typeColor =
+    node.type === 'self'
+      ? '#22c55e'
+      : node.type === 'repeater'
+        ? '#3b82f6'
+        : node.type === 'companion'
+          ? '#a855f7'
+          : '#ffffff';
 
   return (
     <div style={tooltipStyle}>

@@ -34,6 +34,7 @@ import {
   buildLinkKey,
   dedupeConsecutive,
   generatePacketKey,
+  getNodeType,
   type Particle,
   PARTICLE_COLOR_MAP,
   PARTICLE_SPEED,
@@ -267,6 +268,31 @@ export function useVisualizerData3D({
     }
     syncSimulation();
   }, [config?.name, syncSimulation, upsertRenderNode]);
+
+  useEffect(() => {
+    let changed = false;
+    for (const [id, node] of networkStateRef.current.nodes) {
+      if (id === 'self' || node.isAmbiguous) continue;
+      const contact = packetNetworkContext.contactIndex.byPrefix12.get(id);
+      if (!contact) continue;
+
+      if (contact.name && node.name !== contact.name) {
+        node.name = contact.name;
+        changed = true;
+      }
+      const type = getNodeType(contact);
+      if (node.type !== type) {
+        node.type = type;
+        changed = true;
+      }
+      if (contact.last_seen !== null && node.lastSeen !== contact.last_seen) {
+        node.lastSeen = contact.last_seen;
+        changed = true;
+      }
+    }
+
+    if (changed) rebuildRenderProjection();
+  }, [packetNetworkContext, rebuildRenderProjection]);
 
   useEffect(() => {
     processedRef.current.clear();
