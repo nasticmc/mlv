@@ -44,6 +44,7 @@ export interface ParsedPacket {
   srcHash: string | null;
   dstHash: string | null;
   advertPubkey: string | null;
+  advertName: string | null;
   groupTextSender: string | null;
   anonRequestPubkey: string | null;
 }
@@ -155,6 +156,7 @@ export function parsePacket(hexData: string): ParsedPacket | null {
       srcHash: null,
       dstHash: null,
       advertPubkey: null,
+      advertName: null,
       groupTextSender: null,
       anonRequestPubkey: null,
     };
@@ -164,7 +166,9 @@ export function parsePacket(hexData: string): ParsedPacket | null {
       result.srcHash = payload.sourceHash || null;
       result.dstHash = payload.destinationHash || null;
     } else if (decoded.payloadType === PayloadType.Advert && decoded.payload.decoded) {
-      result.advertPubkey = (decoded.payload.decoded as { publicKey?: string }).publicKey || null;
+      const payload = decoded.payload.decoded as { publicKey?: string; appData?: { name?: string } };
+      result.advertPubkey = payload.publicKey || null;
+      result.advertName = payload.appData?.name?.trim() || null;
     } else if (decoded.payloadType === PayloadType.GroupText && decoded.payload.decoded) {
       const payload = decoded.payload.decoded as { decrypted?: { sender?: string } };
       result.groupTextSender = payload.decrypted?.sender || null;

@@ -82,7 +82,8 @@ function buildInitialRenderNode(node: PacketNetworkNode): GraphNode {
   const r = 80 + Math.random() * 100;
   return {
     ...node,
-    x: r * Math.sin(phi) * Math.cos(theta),
+    // Bias non-self nodes toward positive X so self stays near the mesh edge.
+    x: 120 + r * Math.sin(phi) * Math.abs(Math.cos(theta)),
     y: r * Math.sin(phi) * Math.sin(theta),
     z: r * Math.cos(phi),
   };
@@ -154,6 +155,7 @@ export function useVisualizerData3D({
       .force('selfX', forceX<GraphNode>(0).strength((d) => (d.id === 'self' ? 0.1 : 0)))
       .force('selfY', forceY<GraphNode>(0).strength((d) => (d.id === 'self' ? 0.1 : 0)))
       .force('selfZ', forceZ<GraphNode>(0).strength((d) => (d.id === 'self' ? 0.1 : 0)))
+      .force('meshEdgeX', forceX<GraphNode>(220).strength((d) => (d.id === 'self' ? 0 : 0.05)))
       .alphaDecay(0.02)
       .velocityDecay(0.5)
       .alphaTarget(0.03);

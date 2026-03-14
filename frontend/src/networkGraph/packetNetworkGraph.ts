@@ -526,7 +526,19 @@ export function buildCanonicalPathForPacket(
     const nodeId = resolveNode(
       state, context, { type: 'pubkey', value: parsed.advertPubkey }, false, false, activityAtMs
     );
-    if (nodeId) { path.push(nodeId); packetSource = nodeId; }
+    if (nodeId) {
+      if (nodeId !== 'self' && parsed.advertName) {
+        addOrUpdateNode(state, {
+          id: nodeId,
+          name: parsed.advertName,
+          type: state.nodes.get(nodeId)?.type ?? 'client',
+          isAmbiguous: false,
+          activityAtMs,
+        });
+      }
+      path.push(nodeId);
+      packetSource = nodeId;
+    }
   } else if (parsed.payloadType === PayloadType.AnonRequest && parsed.anonRequestPubkey) {
     const nodeId = resolveNode(
       state, context, { type: 'pubkey', value: parsed.anonRequestPubkey }, false, false, activityAtMs
