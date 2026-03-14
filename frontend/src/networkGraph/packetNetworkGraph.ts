@@ -303,6 +303,10 @@ function pickLikelyRepeaterByAdvertPath(
   nextPrefix: string | null
 ): Contact | null {
   const nextHop = nextPrefix?.toLowerCase() ?? null;
+  const matchesHopByPrefix = (advertHop: string | null, packetHop: string | null): boolean => {
+    if (!advertHop || !packetHop) return advertHop === packetHop;
+    return advertHop.startsWith(packetHop) || packetHop.startsWith(advertHop);
+  };
   const scored = candidates
     .map((candidate) => {
       const prefix12 = candidate.public_key.slice(0, 12).toLowerCase();
@@ -313,7 +317,7 @@ function pickLikelyRepeaterByAdvertPath(
       for (const path of paths) {
         totalScore += path.heard_count;
         const pathNextHop = path.next_hop?.toLowerCase() ?? null;
-        if (pathNextHop === nextHop) matchScore += path.heard_count;
+        if (matchesHopByPrefix(pathNextHop, nextHop)) matchScore += path.heard_count;
       }
 
       return { candidate, matchScore, totalScore };
@@ -445,12 +449,25 @@ function resolveNode(
     const likely = pickLikelyRepeaterByAdvertPath(context, filtered, trafficContext.nextPrefix);
     if (likely) {
       const likelyName = likely.name || likely.public_key.slice(0, 12).toUpperCase();
+      const likelyNodeId = likely.public_key.slice(0, 12).toLowerCase();
       probableIdentity = likelyName;
-      probableIdentityNodeId = likely.public_key.slice(0, 12).toLowerCase();
+      probableIdentityNodeId = likelyNodeId;
       displayName = likelyName;
       ambiguousNames = filtered
         .filter((candidate) => candidate.public_key !== likely.public_key)
         .map((candidate) => candidate.name || candidate.public_key.slice(0, 8));
+
+      if (ambiguousNames.length > 0) {
+        addOrUpdateNode(state, {
+          id: likelyNodeId,
+          name: likely.name,
+          type: getNodeType(likely),
+          isAmbiguous: false,
+          lastSeen: likely.last_seen,
+          activityAtMs,
+        });
+        return likelyNodeId;
+      }
     }
   }
 

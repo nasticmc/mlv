@@ -32,7 +32,6 @@ export interface NodeMeshData {
 export const NODE_COLORS = {
   self: 0x22c55e,
   repeater: 0x3b82f6,
-  companion: 0xa855f7,
   client: 0xffffff,
   ambiguous: 0x9ca3af,
 } as const;
@@ -40,8 +39,7 @@ export const NODE_COLORS = {
 export const NODE_LEGEND_ITEMS = [
   { label: 'Self (you)', color: '#22c55e', size: 16 },
   { label: 'Repeater', color: '#3b82f6', size: 10 },
-  { label: 'Companion', color: '#a855f7', size: 10 },
-  { label: 'Client', color: '#ffffff', size: 10 },
+  { label: 'Companion / Client', color: '#ffffff', size: 10 },
   { label: 'Ambiguous', color: '#9ca3af', size: 10 },
 ] as const;
 
@@ -49,7 +47,6 @@ export function getBaseNodeColor(node: PacketNetworkNode): number {
   if (node.id === 'self') return NODE_COLORS.self;
   if (node.isAmbiguous) return NODE_COLORS.ambiguous;
   if (node.type === 'repeater') return NODE_COLORS.repeater;
-  if (node.type === 'companion') return NODE_COLORS.companion;
   return NODE_COLORS.client;
 }
 
@@ -79,7 +76,7 @@ export function formatRelativeTime(timestamp: number): string {
 }
 
 export function getSceneNodeLabel(node: PacketNetworkNode): string {
-  const name = node.name || node.id.slice(0, 8);
+  const name = node.name || 'Unknown node';
   if (node.isAmbiguous && node.probableIdentity) {
     return `~${node.probableIdentity}`;
   }
