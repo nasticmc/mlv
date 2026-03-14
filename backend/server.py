@@ -184,7 +184,21 @@ async def refresh_state(mc: MeshCore) -> None:
 
 def _extract_hex(payload: Any) -> str:
     """Pull raw hex packet data out of a meshcore event payload."""
-    for attr in ("data", "raw"):
+    if payload is None:
+        return ""
+
+    candidates = ("data", "raw", "payload")
+
+    if isinstance(payload, dict):
+        for key in candidates:
+            raw = payload.get(key)
+            if isinstance(raw, (bytes, bytearray)):
+                return raw.hex()
+            if isinstance(raw, str) and raw:
+                return raw
+        return ""
+
+    for attr in candidates:
         raw = getattr(payload, attr, None)
         if raw is None:
             continue
@@ -197,8 +211,15 @@ def _extract_hex(payload: Any) -> str:
 
 def _extract_signal(payload: Any) -> tuple[float | None, float | None]:
     snr, rssi = None, None
+
+    def _pick_value(name: str) -> Any:
+        upper_name = name.upper()
+        if isinstance(payload, dict):
+            return payload.get(name, payload.get(upper_name))
+        return getattr(payload, name, getattr(payload, upper_name, None))
+
     for name, slot in (("snr", "snr"), ("rssi", "rssi")):
-        val = getattr(payload, name, None)
+        val = _pick_value(name)
         try:
             if slot == "snr":
                 snr = float(val)
@@ -300,6 +321,11 @@ async def run_meshcore(args: argparse.Namespace) -> None:
 
         try:
             mc.subscribe(EventType.ADVERTISEMENT, lambda e: asyncio.create_task(on_advertisement(e)))
+        except AttributeError:
+            pass
+
+        try:
+            mc.subscribe(EventType.RX_LOG_DATA, lambda e: asyncio.create_task(on_raw_packet(e)))
         except AttributeError:
             pass
 
