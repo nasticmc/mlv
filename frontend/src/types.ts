@@ -76,6 +76,12 @@ export interface WsPacket {
   packet: RawPacket;
 }
 
+export interface WsHistory {
+  type: 'history';
+  /** Full packet history replay sent once on connect, oldest-first. */
+  packets: RawPacket[];
+}
+
 export interface WsConnected {
   type: 'connected';
   message: string;
@@ -86,4 +92,4 @@ export interface WsError {
   message: string;
 }
 
-export type WsMessage = WsStateUpdate | WsPacket | WsConnected | WsError;
+export type WsMessage = WsStateUpdate | WsPacket | WsHistory | WsConnected | WsError;

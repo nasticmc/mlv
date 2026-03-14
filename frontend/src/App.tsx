@@ -8,17 +8,22 @@ import type {
   WsMessage,
 } from './types';
 
-const MAX_PACKETS = 500;
-const WS_DEFAULT = 'ws://localhost:8765';
+/** Largest live ring-buffer kept in memory (on top of whatever history loaded). */
+const MAX_LIVE_PACKETS = 500;
+const DEFAULT_WS_PORT = 8765;
 const WS_STORAGE_KEY = 'mlv-ws-url';
 
-type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+/** Derive a sensible default backend WS URL from the current page location. */
+function defaultWsUrl(): string {
+  const host = window.location.hostname || 'localhost';
+  return `ws://${host}:${DEFAULT_WS_PORT}`;
+}
 
 function getStoredWsUrl(): string {
   try {
-    return localStorage.getItem(WS_STORAGE_KEY) || WS_DEFAULT;
+    return localStorage.getItem(WS_STORAGE_KEY) || defaultWsUrl();
   } catch {
-    return WS_DEFAULT;
+    return defaultWsUrl();
   }
 }
 
@@ -30,8 +35,9 @@ function saveWsUrl(url: string) {
   }
 }
 
+type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
 export default function App() {
-  const [wsUrl, setWsUrl] = useState(getStoredWsUrl);
   const [wsUrlInput, setWsUrlInput] = useState(getStoredWsUrl);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -40,12 +46,22 @@ export default function App() {
   const [config, setConfig] = useState<RadioConfig | null>(null);
   const [advertPaths, setAdvertPaths] = useState<ContactAdvertPathSummary[]>([]);
   const [showConfig, setShowConfig] = useState(false);
+  const [historyCount, setHistoryCount] = useState<number | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  // Track whether we intentionally disconnected (no auto-reconnect in that case)
+  const intentionalDisconnectRef = useRef(false);
+  // Keep the active URL in a ref for the auto-reconnect closure
+  const activeUrlRef = useRef(getStoredWsUrl());
 
   const connect = useCallback((url: string) => {
+    intentionalDisconnectRef.current = false;
+    activeUrlRef.current = url;
+
     if (wsRef.current) {
+      wsRef.current.onclose = null; // suppress reconnect from the old socket
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -56,6 +72,7 @@ export default function App() {
 
     setConnectionState('connecting');
     setErrorMsg(null);
+    setHistoryCount(null);
 
     try {
       const ws = new WebSocket(url);
@@ -71,15 +88,29 @@ export default function App() {
         if (!mountedRef.current) return;
         try {
           const msg: WsMessage = JSON.parse(event.data as string);
+
           if (msg.type === 'state_update') {
             if (msg.config) setConfig(msg.config);
             if (msg.contacts) setContacts(msg.contacts);
             if (msg.advert_paths) setAdvertPaths(msg.advert_paths);
+
+          } else if (msg.type === 'history') {
+            // Replace current packet buffer with the full history replay
+            setPackets(msg.packets);
+            setHistoryCount(msg.packets.length);
+            // Clear the indicator after a few seconds
+            setTimeout(() => setHistoryCount(null), 4000);
+
           } else if (msg.type === 'packet') {
             setPackets((prev) => {
+              // Append live packet; trim only the live tail beyond MAX_LIVE_PACKETS
+              // (history packets stay in the buffer — they have lower IDs)
               const next = [...prev, msg.packet];
-              return next.length > MAX_PACKETS ? next.slice(-MAX_PACKETS) : next;
+              return next.length > MAX_LIVE_PACKETS + 2000
+                ? next.slice(-MAX_LIVE_PACKETS - 2000)
+                : next;
             });
+
           } else if (msg.type === 'error') {
             setErrorMsg(msg.message);
           }
@@ -97,13 +128,13 @@ export default function App() {
       ws.onclose = () => {
         if (!mountedRef.current) return;
         wsRef.current = null;
-        if (connectionState !== 'disconnected') {
-          setConnectionState('error');
-          // Auto-reconnect after 5s
-          reconnectTimerRef.current = setTimeout(() => {
-            if (mountedRef.current) connect(url);
-          }, 5000);
-        }
+        if (intentionalDisconnectRef.current) return;
+        setConnectionState('error');
+        reconnectTimerRef.current = setTimeout(() => {
+          if (mountedRef.current && !intentionalDisconnectRef.current) {
+            connect(activeUrlRef.current);
+          }
+        }, 5000);
       };
     } catch (e) {
       setConnectionState('error');
@@ -123,12 +154,12 @@ export default function App() {
   const handleConnect = () => {
     const url = wsUrlInput.trim();
     saveWsUrl(url);
-    setWsUrl(url);
     connect(url);
     setShowConfig(false);
   };
 
   const handleDisconnect = () => {
+    intentionalDisconnectRef.current = true;
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
@@ -149,6 +180,8 @@ export default function App() {
     connectionState === 'connecting' ? 'Connecting…' :
     connectionState === 'error' ? 'Error' : 'Disconnected';
 
+  const isLive = connectionState === 'connected' || connectionState === 'connecting';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0a0a0a', color: '#e5e7eb' }}>
       {/* Header */}
@@ -161,24 +194,30 @@ export default function App() {
           MeshCore Visualizer
         </div>
         {config?.name && (
-          <div style={{ fontSize: '12px', color: '#9ca3af' }}>
-            — {config.name}
+          <div style={{ fontSize: '12px', color: '#9ca3af' }}>— {config.name}</div>
+        )}
+
+        {/* History loaded indicator */}
+        {historyCount !== null && (
+          <div style={{
+            fontSize: '11px', color: '#22c55e', background: 'rgba(34,197,94,0.1)',
+            border: '1px solid rgba(34,197,94,0.3)', borderRadius: '4px',
+            padding: '2px 8px',
+          }}>
+            ↩ Loaded {historyCount} stored packet{historyCount !== 1 ? 's' : ''}
           </div>
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Status indicator */}
+          {/* Status */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: statusColor, flexShrink: 0 }} />
             <span style={{ color: statusColor }}>{statusLabel}</span>
             {connectionState === 'error' && (
-              <span style={{ color: '#ef4444', fontSize: '11px' }}>
-                {' '}— retrying…
-              </span>
+              <span style={{ color: '#ef4444', fontSize: '11px' }}> — retrying…</span>
             )}
           </div>
 
-          {/* Config toggle */}
           <button
             onClick={() => setShowConfig((s) => !s)}
             style={{
@@ -189,7 +228,7 @@ export default function App() {
             ⚙ Config
           </button>
 
-          {connectionState === 'connected' || connectionState === 'connecting' ? (
+          {isLive ? (
             <button
               onClick={handleDisconnect}
               style={{
@@ -201,7 +240,7 @@ export default function App() {
             </button>
           ) : (
             <button
-              onClick={() => connect(wsUrl)}
+              onClick={handleConnect}
               style={{
                 padding: '4px 10px', fontSize: '12px', background: 'rgba(34,197,94,0.15)',
                 color: '#22c55e', border: '1px solid rgba(34,197,94,0.4)', borderRadius: '4px', cursor: 'pointer',
@@ -217,7 +256,7 @@ export default function App() {
       {showConfig && (
         <div style={{
           padding: '12px 16px', borderBottom: '1px solid #374151', background: '#1f2937',
-          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, flexWrap: 'wrap',
         }}>
           <label style={{ fontSize: '13px', color: '#9ca3af', whiteSpace: 'nowrap' }}>
             Backend WebSocket URL:
@@ -227,9 +266,9 @@ export default function App() {
             value={wsUrlInput}
             onChange={(e) => setWsUrlInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-            placeholder={WS_DEFAULT}
+            placeholder={defaultWsUrl()}
             style={{
-              flex: 1, maxWidth: '360px', padding: '4px 8px', fontSize: '13px',
+              flex: 1, minWidth: '220px', maxWidth: '360px', padding: '4px 8px', fontSize: '13px',
               background: '#111827', border: '1px solid #374151', borderRadius: '4px',
               color: '#e5e7eb', fontFamily: 'monospace',
             }}
@@ -243,15 +282,14 @@ export default function App() {
           >
             Connect
           </button>
-          {errorMsg && (
-            <span style={{ fontSize: '12px', color: '#ef4444' }}>{errorMsg}</span>
-          )}
+          {errorMsg && <span style={{ fontSize: '12px', color: '#ef4444' }}>{errorMsg}</span>}
         </div>
       )}
 
-      {/* Main visualizer */}
+      {/* Main area */}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        {connectionState === 'disconnected' ? (
+        {connectionState === 'disconnected' && packets.length === 0 ? (
+          /* Landing screen — shown only when truly empty */
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             height: '100%', gap: '16px', color: '#9ca3af',
@@ -260,8 +298,9 @@ export default function App() {
             <div style={{ fontSize: '18px', fontWeight: 500, color: '#e5e7eb' }}>
               MeshCore Mesh Visualizer
             </div>
-            <div style={{ fontSize: '14px', textAlign: 'center', maxWidth: '400px', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '14px', textAlign: 'center', maxWidth: '440px', lineHeight: 1.6 }}>
               Connect to a backend server to visualize your mesh network in real-time 3D.
+              Packet history is persisted — any device on your network sees the same graph.
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
               <input
@@ -269,7 +308,7 @@ export default function App() {
                 value={wsUrlInput}
                 onChange={(e) => setWsUrlInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-                placeholder={WS_DEFAULT}
+                placeholder={defaultWsUrl()}
                 style={{
                   width: '280px', padding: '8px 12px', fontSize: '14px',
                   background: '#1f2937', border: '1px solid #374151', borderRadius: '6px',
@@ -288,7 +327,10 @@ export default function App() {
               </button>
             </div>
             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-              Start the backend with: <code style={{ background: '#1f2937', padding: '2px 6px', borderRadius: '4px' }}>python backend/server.py</code>
+              Start the backend with:{' '}
+              <code style={{ background: '#1f2937', padding: '2px 6px', borderRadius: '4px' }}>
+                python backend/server.py --serial /dev/ttyUSB0
+              </code>
             </div>
           </div>
         ) : (
