@@ -1,11 +1,16 @@
 import { MeshCoreDecoder, PayloadType } from '@michaelhart/meshcore-decoder';
-import { CONTACT_TYPE_REPEATER, type Contact, type RawPacket } from '../types';
+import {
+  CONTACT_TYPE_COMPANION,
+  CONTACT_TYPE_REPEATER,
+  type Contact,
+  type RawPacket,
+} from '../types';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-export type NodeType = 'self' | 'repeater' | 'client';
+export type NodeType = 'self' | 'repeater' | 'companion' | 'client';
 type PacketLabel = 'AD' | 'GT' | 'DM' | 'ACK' | 'TR' | 'RQ' | 'RS' | '?';
 
 export interface Particle {
@@ -232,7 +237,9 @@ export function buildLinkKey(sourceId: string, targetId: string): string {
 }
 
 export function getNodeType(contact: Contact | null | undefined): NodeType {
-  return contact?.type === CONTACT_TYPE_REPEATER ? 'repeater' : 'client';
+  if (contact?.type === CONTACT_TYPE_REPEATER) return 'repeater';
+  if (contact?.type === CONTACT_TYPE_COMPANION) return 'companion';
+  return 'client';
 }
 
 export function dedupeConsecutive<T>(arr: T[]): T[] {

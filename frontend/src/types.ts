@@ -61,6 +61,7 @@ export interface RawPacket {
 }
 
 /** Contact type constants */
+export const CONTACT_TYPE_COMPANION = 1;
 export const CONTACT_TYPE_REPEATER = 2;
 
 // WebSocket message types from backend
