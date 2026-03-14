@@ -24,6 +24,34 @@ backend/server.py  ──── WebSocket (ws://localhost:8765) ────► 
 
 ## Setup
 
+### Docker Compose
+
+Run both frontend and backend with Docker:
+
+```bash
+docker compose up --build
+```
+
+The app will be available at http://localhost:8080 and the backend WebSocket at
+`ws://localhost:8765`.
+
+By default the backend starts without a live radio connection (history-only mode).
+To pass MeshCore connection arguments, set `MESH_ARGS`:
+
+```bash
+# Serial
+MESH_ARGS="--serial /dev/ttyUSB0" docker compose up --build
+
+# TCP
+MESH_ARGS="--tcp 192.168.1.100:4000" docker compose up --build
+
+# BLE
+MESH_ARGS="--ble 12:34:56:78:90:AB" docker compose up --build
+```
+
+If using serial devices, also pass device mappings (for example via
+`docker compose run --device=/dev/ttyUSB0 ...`) depending on your platform.
+
 ### Backend
 
 ```bash
